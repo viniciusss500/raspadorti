@@ -4,18 +4,15 @@ const { addonBuilder } = require('stremio-addon-sdk');
 const express = require('express');
 
 const { getCacheKey, getCached, setCache } = require('./utils/cache');
-const { processTorrents } = require('./services/torrentService');
-
-// 👉 você já deve ter algo assim (sua busca real)
-const { searchTorrents } = require('./services/search'); 
+const { runSearch } = require('./core/engine');
 
 const PORT = process.env.PORT || 7007;
 
 const manifest = {
-  id: 'org.indexabr.addon',
-  version: '1.0.0',
-  name: 'IndexaBR',
-  description: 'Addon brasileiro de torrents (filmes e séries)',
+  id: 'org.indexabr.pro',
+  version: '2.0.0',
+  name: 'IndexaBR PRO',
+  description: 'Addon brasileiro PRO ⚡',
   resources: ['stream'],
   types: ['movie', 'series'],
   idPrefixes: ['tt']
@@ -23,9 +20,6 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-/**
- * 🎬 STREAM HANDLER
- */
 builder.defineStreamHandler(async (args) => {
   try {
     const { id, type } = args;
@@ -34,7 +28,6 @@ builder.defineStreamHandler(async (args) => {
     let season = null;
     let episode = null;
 
-    // 👉 séries vêm como: tt123456:1:2
     if (type === 'series') {
       const parts = id.split(':');
       imdbId = parts[0];
@@ -44,73 +37,40 @@ builder.defineStreamHandler(async (args) => {
 
     const cacheKey = getCacheKey({ imdbId, season, episode });
 
-    // ⚡ CACHE
     const cached = getCached(cacheKey);
-    if (cached) {
-      console.log('⚡ Cache hit:', cacheKey);
-      return { streams: cached };
-    }
+    if (cached) return { streams: cached };
 
-    console.log('🔎 Buscando torrents:', imdbId);
-
-    // 🔎 BUSCA
-    let torrents = await searchTorrents({
+    const torrents = await runSearch({
       imdbId,
       season,
       episode,
       type
     });
 
-    if (!torrents || torrents.length === 0) {
-      return { streams: [] };
-    }
+    const streams = torrents.map(t => ({
+      name: `⚡ ${t.quality}`,
+      title: t.name,
+      infoHash: t.infoHash,
+      fileIdx: 0,
+      behaviorHints: {
+        videoSize: t.sizeBytes
+      }
+    }));
 
-    // 🧠 PROCESSAMENTO COMPLETO
-    torrents = processTorrents(torrents, {
-      season,
-      episode
-    });
-
-    if (!torrents.length) {
-      return { streams: [] };
-    }
-
-    // 🎥 STREAMS FORMATADOS
-    const streams = torrents.map((t) => {
-      const isPack = t.name.toLowerCase().includes('temporada') ||
-                     t.name.toLowerCase().includes('season');
-
-      return {
-        name: `IndexaBR ${t.quality}`,
-        title: isPack
-          ? `📦 Temporada ${season} completa\n${t.name}`
-          : t.name,
-        infoHash: t.infoHash,
-        fileIdx: 0,
-        behaviorHints: {
-          videoSize: t.sizeBytes
-        }
-      };
-    });
-
-    // 💾 SALVA CACHE
     setCache(cacheKey, streams);
 
     return { streams };
 
   } catch (err) {
-    console.error('❌ Erro no streamHandler:', err);
+    console.error(err);
     return { streams: [] };
   }
 });
 
-/**
- * 🚀 SERVIDOR EXPRESS
- */
 const app = express();
 
 app.get('/', (req, res) => {
-  res.send('IndexaBR rodando 🚀');
+  res.send('IndexaBR PRO rodando 🚀');
 });
 
 app.get('/manifest.json', (req, res) => {
@@ -123,5 +83,5 @@ app.get('/stream/:type/:id.json', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server rodando na porta ${PORT}`);
+  console.log(`🚀 PRO Server na porta ${PORT}`);
 });
