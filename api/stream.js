@@ -5,7 +5,14 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
-    const { type, id } = req.query;
+   const urlParts = req.url.split('/');
+
+  // /api/stream/movie/tt0111161.json
+   const type = urlParts[3];
+   const idWithJson = urlParts[4];
+
+  // remove .json
+   const id = idWithJson?.replace('.json', '');
 
     let imdbId = id;
     let season = null;
