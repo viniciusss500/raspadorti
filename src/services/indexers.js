@@ -6,12 +6,14 @@ async function searchJackett({ imdbId }) {
 
     const res = await axios.get(url, { timeout: 8000 });
 
-    return res.data.Results.map(r => ({
-      name: r.Title,
-      size: r.Size,
-      seeders: r.Seeders,
-      infoHash: r.InfoHash
-    }));
+return res.data.Results
+  .filter(r => r.InfoHash && r.InfoHash.length > 10) // 🔥 FILTRO CRÍTICO
+  .map(r => ({
+    name: r.Title,
+    size: r.Size,
+    seeders: r.Seeders,
+    infoHash: r.InfoHash
+  }));
 
   } catch {
     return [];
