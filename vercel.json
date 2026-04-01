@@ -1,0 +1,6 @@
+{
+  "routes": [
+    { "src": "/manifest.json", "dest": "/api/manifest" },
+    { "src": "/stream/(.*)", "dest": "/api/stream" }
+  ]
+}
