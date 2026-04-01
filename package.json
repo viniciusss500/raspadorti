@@ -1,10 +1,19 @@
 {
-  "name": "raspadorti",
-  "version": "1.0.0",
+  "name": "stremio-tindexer",
+  "version": "2.0.0",
+  "description": "Stremio addon for torrent-indexer (refactored)",
   "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
   "dependencies": {
-    "axios": "^1.6.0",
-    "node-cache": "^5.1.2",
-    "stremio-addon-sdk": "^1.6.10"
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0",
+    "express-rate-limit": "^7.4.0",
+    "redis": "^4.7.0"
+  },
+  "engines": {
+    "node": "24"
   }
 }
