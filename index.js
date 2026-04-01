@@ -35,6 +35,7 @@ const {
 // ================================================================
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -73,7 +74,7 @@ async function cacheSet(key, val) {
 // RATE LIMIT
 // ================================================================
 
-const limiter = rateLimit({ windowMs: 60000, max: 60 });
+const limiter = rateLimit({ windowMs: 60000, max: 600000 });
 app.use(limiter);
 
 // ================================================================
