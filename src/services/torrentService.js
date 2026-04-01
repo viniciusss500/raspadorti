@@ -2,14 +2,15 @@ const { parseSize, extractEpisodeInfo } = require('../utils/parser');
 const { isBrazilianAudio } = require('../utils/filters');
 const { dedupeTorrents } = require('../utils/dedupe');
 const { getQuality } = require('../utils/quality');
+const { sortTorrents } = require('../core/scorer');
 
 function processTorrents(torrents, { season, episode }) {
   let results = torrents;
 
-  // 🇧🇷 filtro idioma
+  // 🇧🇷 idioma
   results = results.filter(t => isBrazilianAudio(t.name));
 
-  // 📺 séries
+  // 📺 séries avançado
   if (season && episode) {
     results = results.filter(t => {
       const info = extractEpisodeInfo(t.name);
@@ -19,31 +20,25 @@ function processTorrents(torrents, { season, episode }) {
         return info.season == season && info.episode == episode;
       }
 
+      // pack com múltiplos arquivos
       return info.season == season;
     });
   }
 
-  // ♻️ dedupe
+  // enrich
+  results = results.map(t => ({
+    ...t,
+    sizeBytes: parseSize(t.size),
+    quality: getQuality(t.name)
+  }));
+
+  // dedupe
   results = dedupeTorrents(results);
 
-  // 📊 enrich + ordenação
-  results = results.map(t => {
-    const size = parseSize(t.size);
+  // score + ordenação
+  results = sortTorrents(results);
 
-    return {
-      ...t,
-      sizeBytes: size,
-      quality: getQuality(t.name)
-    };
-  });
-
-  results.sort((a, b) => {
-    const scoreA = (a.seeders || 0) + (a.sizeBytes / 1e9);
-    const scoreB = (b.seeders || 0) + (b.sizeBytes / 1e9);
-    return scoreB - scoreA;
-  });
-
-  return results;
+  return results.slice(0, 20); // limite inteligente
 }
 
 module.exports = { processTorrents };
