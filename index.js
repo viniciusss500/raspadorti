@@ -36,6 +36,7 @@ const {
 
 const app = express();
 app.set('trust proxy', 1);
+
 app.use(express.json());
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -74,8 +75,34 @@ async function cacheSet(key, val) {
 // RATE LIMIT
 // ================================================================
 
-const limiter = rateLimit({ windowMs: 60000, max: 600000 });
+const limiter = rateLimit({
+  windowMs: 60000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
 app.use(limiter);
+
+// ================================================================
+// CINEMETA (CRÍTICO)
+// ================================================================
+
+async function resolveTitle(type, imdbId) {
+  try {
+    const url = `https://v3-cinemeta.strem.io/meta/${type}/${imdbId}.json`;
+    const res = await fetch(url);
+
+    if (!res.ok) throw new Error('Cinemeta failed');
+
+    const data = await res.json();
+
+    return data?.meta?.name || null;
+  } catch (e) {
+    console.warn('Cinemeta error:', e.message);
+    return null;
+  }
+}
 
 // ================================================================
 // HASH
@@ -124,18 +151,27 @@ function buildStream(t, opts = {}) {
 async function fetchIndexer(baseUrl, name, query) {
   try {
     const url = `${baseUrl}/indexers/${name}?q=${encodeURIComponent(query)}`;
+
+    console.log('[fetch]', url);
+
     const res = await fetch(url);
 
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.warn('[fetch fail]', name, res.status);
+      return [];
+    }
 
     const data = await res.json();
+
+    console.log('[results]', name, data.results?.length || 0);
 
     return (data.results || []).map(t => ({
       ...t,
       _label: name
     }));
 
-  } catch {
+  } catch (e) {
+    console.warn('[fetch error]', name, e.message);
     return [];
   }
 }
@@ -151,8 +187,8 @@ async function fetchAll(cfg, query) {
 // ================================================================
 
 const DEFAULT_CONFIG = {
-  indexerUrl: 'https://tindexer.onrender.com',
-  indexers: ['bludv','comando_torrents','rede_torrent']
+  indexerUrl: 'https://ti-five-khaki.vercel.app',
+  indexers: ['starck-filmes','torrent-dos-filmes','rede_torrent']
 };
 
 // ================================================================
@@ -162,26 +198,20 @@ const DEFAULT_CONFIG = {
 function buildManifest() {
   return {
     id: 'community.tindexer',
-    version: '2.0.0',
+    version: '2.1.0',
     name: '🇧🇷 TIndexer',
-    description: 'Torrents brasileiros com filtro inteligente',
+    description: 'Torrents brasileiros com busca real corrigida',
     logo: 'https://i.imgur.com/MZnB6dV.png',
-
     resources: ['stream'],
     types: ['movie', 'series'],
-    idPrefixes: ['tt'],
-
-    behaviorHints: {
-      configurable: false
-    },
-
-    catalogs: []
+    idPrefixes: ['tt']
   };
 }
 
 // ================================================================
-// ROUTE
+// ROUTES
 // ================================================================
+
 app.get('/manifest.json', (req, res) => {
   res.json(buildManifest());
 });
@@ -200,21 +230,38 @@ app.get('/stream/:type/:id.json', async (req, res) => {
   const cached = await cacheGet(cacheKey);
   if (cached) return res.json({ streams: cached });
 
-  const query = imdb;
+  // ================================================================
+  // 🔥 CORREÇÃO PRINCIPAL
+  // ================================================================
 
-  // ================================================================
-  // PIPELINE NOVO
-  // ================================================================
+  const title = await resolveTitle(type, imdb);
+
+  if (!title) {
+    console.warn('Sem título:', imdb);
+    return res.json({ streams: [] });
+  }
+
+  console.log('[title]', title);
+
+  let query = isSeries
+    ? `${title} temporada ${season}`
+    : title;
 
   let torrents = await fetchAll(DEFAULT_CONFIG, query);
 
-  // normalize
-  torrents = torrents.map(normalizeTorrent);
+  // fallback (nome simples)
+  if (!torrents.length) {
+    console.log('[fallback search]');
+    torrents = await fetchAll(DEFAULT_CONFIG, title);
+  }
 
-  // enrich
+  // ================================================================
+  // PIPELINE
+  // ================================================================
+
+  torrents = torrents.map(normalizeTorrent);
   torrents = enrichBatch(torrents);
 
-  // language
   torrents = torrents.map(t => {
     t.lang = detectLanguage(t.title);
     return t;
@@ -222,17 +269,15 @@ app.get('/stream/:type/:id.json', async (req, res) => {
 
   torrents = torrents.filter(t => allowLanguage(t.lang));
 
-  // classify
   torrents = torrents.map(t => {
     t.type = classifyTorrent(t);
     return t;
   });
 
-  // rank
   torrents = rankTorrents(torrents);
 
   // ================================================================
-  // STREAM BUILD
+  // BUILD STREAMS
   // ================================================================
 
   const streams = [];
@@ -245,8 +290,7 @@ app.get('/stream/:type/:id.json', async (req, res) => {
     }
 
     const s = buildStream(t.raw, {
-      fileIdx,
-      isPack: t.type === 'pack'
+      fileIdx
     });
 
     if (s) streams.push(s);
@@ -265,6 +309,7 @@ app.get('/stream/:type/:id.json', async (req, res) => {
 
 if (require.main === module) {
   const PORT = process.env.PORT || 7001;
+
   initRedis().then(() => {
     app.listen(PORT, () => {
       console.log(`Running on http://localhost:${PORT}`);
