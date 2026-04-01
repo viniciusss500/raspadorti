@@ -1,9 +1,6 @@
 const NodeCache = require('node-cache');
 
-const cache = new NodeCache({
-  stdTTL: 60 * 30, // 30 min
-  checkperiod: 120
-});
+const cache = new NodeCache({ stdTTL: 1800 });
 
 function getCacheKey({ imdbId, season, episode }) {
   return `${imdbId}:${season || 0}:${episode || 0}`;
@@ -17,8 +14,4 @@ function setCache(key, data) {
   cache.set(key, data);
 }
 
-module.exports = {
-  getCacheKey,
-  getCached,
-  setCache
-};
+module.exports = { getCacheKey, getCached, setCache };
