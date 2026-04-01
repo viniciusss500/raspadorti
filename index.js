@@ -156,8 +156,35 @@ const DEFAULT_CONFIG = {
 };
 
 // ================================================================
+// MANIFEST
+// ================================================================
+
+function buildManifest() {
+  return {
+    id: 'community.tindexer',
+    version: '2.0.0',
+    name: '🇧🇷 TIndexer',
+    description: 'Torrents brasileiros com filtro inteligente',
+    logo: 'https://i.imgur.com/MZnB6dV.png',
+
+    resources: ['stream'],
+    types: ['movie', 'series'],
+    idPrefixes: ['tt'],
+
+    behaviorHints: {
+      configurable: false
+    },
+
+    catalogs: []
+  };
+}
+
+// ================================================================
 // ROUTE
 // ================================================================
+app.get('/manifest.json', (req, res) => {
+  res.json(buildManifest());
+});
 
 app.get('/stream/:type/:id.json', async (req, res) => {
   const { type, id } = req.params;
