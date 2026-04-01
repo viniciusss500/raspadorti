@@ -1,17 +1,4 @@
 const axios = require('axios');
-const { log } = require('../core/logger');
-
-const INDEXERS = [
-  {
-    name: 'jackett',
-    url: process.env.JACKETT_URL,
-    key: process.env.JACKETT_KEY
-  },
-  {
-    name: 'fallback1',
-    url: process.env.FALLBACK_URL
-  }
-];
 
 async function searchJackett({ imdbId }) {
   try {
@@ -26,21 +13,14 @@ async function searchJackett({ imdbId }) {
       infoHash: r.InfoHash
     }));
 
-  } catch (err) {
-    log('JACKETT_FAIL', err.message);
+  } catch {
     return [];
   }
 }
 
-async function searchFallback() {
-  // 👉 você pode integrar outro scraper aqui depois
-  return [];
-}
-
 async function searchAllIndexers(params) {
   const results = await Promise.allSettled([
-    searchJackett(params),
-    searchFallback(params)
+    searchJackett(params)
   ]);
 
   let torrents = [];
